@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import {
-  AuthGate, AuthOverlay, useAuthProfileReady, useChannels, useMessages,
+  useAuthProfileReady, useChannels, useMessages,
   useMutations, usePresenceRoom, useQuery,
 } from 'deepspace'
 import { Activity, ArrowDown, ArrowUpRight, Check, ChevronDown, ChevronRight, Clock3, Crosshair, Fuel, Gauge, Globe2, LifeBuoy, Menu, Orbit, Radio, Rocket, Satellite, ShieldCheck, Target, Thermometer, Wind, X } from 'lucide-react'
@@ -25,12 +25,7 @@ const telemetry = [
 ]
 
 export default function HomePage() {
-  return <AuthGate fallback={<SignedOut/>}><MissionDesk/></AuthGate>
-}
-
-function SignedOut() {
-  const [showAuth, setShowAuth] = useState(false)
-  return <div className="signin-screen"><div className="signin-card"><div className="brand-mark"><Orbit size={20}/></div><p className="eyebrow">ORBIT OPS · FLIGHT CONTROL</p><h1>Welcome to the flight deck</h1><p>Sign in to join the crew, sync mission plans, and leave handoff notes.</p><button className="primary-button" onClick={() => setShowAuth(true)}>Sign in to continue <ArrowUpRight size={15}/></button></div>{showAuth&&<AuthOverlay onClose={()=>setShowAuth(false)}/>}</div>
+  return <MissionDesk />
 }
 
 function MissionDesk() {

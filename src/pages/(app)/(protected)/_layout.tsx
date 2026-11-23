@@ -5,25 +5,20 @@
  * sign-in, put it directly under src/pages/(app)/; for a static page, put it
  * at the top level of src/pages/.
  *
- * Children may call data hooks like `useUser()` safely because the parent
- * (app)/_layout.tsx mounts <RecordProvider> above this layout.
- *
- * The `fallback` keeps signed-out visitors inside the app's own chrome
- * (without it, AuthGate shows the SDK's full-screen, non-dismissible
- * overlay). The sign-in overlay opens on demand and can be dismissed.
+ * Record hooks are only reached after auth resolves and the visitor is signed in.
+ * While auth is pending or signed out, the panel below offers a dismissible
+ * sign-in overlay without opening realtime record connections.
  */
 
 import { useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { AuthGate, AuthOverlay } from 'deepspace'
+import { AuthOverlay, useAuthStatus } from 'deepspace'
 import { Button } from '@/components/ui'
 
 export default function ProtectedLayout() {
-  return (
-    <AuthGate fallback={<SignedOutPanel />}>
-      <Outlet />
-    </AuthGate>
-  )
+  const { isLoaded, isSignedIn } = useAuthStatus()
+  if (!isLoaded || !isSignedIn) return <SignedOutPanel />
+  return <Outlet />
 }
 
 function SignedOutPanel() {

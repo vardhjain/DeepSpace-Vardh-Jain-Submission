@@ -21,9 +21,9 @@ export default function AppLayout() {
 }
 
 function AuthBoot({ children }: { children: ReactNode }) {
-  const { isLoaded } = useAuthStatus()
+  const { isLoaded, isSignedIn } = useAuthStatus()
   const { error, warning } = useToast()
-  if (!isLoaded) return <div aria-busy="true" className="fixed inset-0 bg-background" />
+  if (!isLoaded || !isSignedIn) return <>{children}</>
   return (
     <RecordProvider onWriteError={e => e.kind === 'permission' ? warning(e.title, e.detail) : error(e.title, e.detail)}>
       <RecordScope roomId={SCOPE_ID} schemas={schemas}>
