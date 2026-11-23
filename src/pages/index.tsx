@@ -1,18 +1,31 @@
+import { ArrowRight, Wrench } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Seo } from '../components/Seo'
 import { APP_NAME } from '../constants'
 import { seo } from '../seo'
+import '../benchline.css'
 
 export default function Landing() {
   return (
     <>
       <Seo {...seo} path="/" />
-      <div data-testid="static-landing" className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <p className="mb-3 text-sm uppercase tracking-widest text-muted-foreground">{APP_NAME} · FLIGHT OPERATIONS</p>
-        <h1 className="mb-4 max-w-2xl text-4xl font-bold tracking-tight text-foreground sm:text-5xl">A mission desk for the long way out</h1>
-        <p className="mb-8 max-w-md text-muted-foreground">Shared mission planning, live crew presence, and handoff notes for a deep-space expedition.</p>
-        <Link to="/home" className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90">Enter the flight deck</Link>
-      </div>
+      <main className="landing-screen">
+        <section className="landing-card">
+          <div className="landing-brand">
+            <span className="bench-logo"><Wrench size={18} /></span>
+            <span>{APP_NAME} <small>· REPAIR CAFÉ SHIFTBOARD</small></span>
+          </div>
+          <div className="landing-eyebrow">FOR COMMUNITY REPAIR TEAMS</div>
+          <h1>Keep good things in use.</h1>
+          <p>Benchline helps volunteer repair teams turn intake into clear bench work, track parts, and hand each repair to the next person without losing context.</p>
+          <div className="landing-points">
+            <span>Shared repair queue</span>
+            <span>Parts & next steps</span>
+            <span>Live volunteer handoff</span>
+          </div>
+          <Link to="/home" className="landing-link">Open the shiftboard <ArrowRight size={15} /></Link>
+        </section>
+      </main>
     </>
   )
 }

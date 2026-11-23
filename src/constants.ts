@@ -1,4 +1,4 @@
-export const APP_NAME = 'Orbit Ops'
+export const APP_NAME = 'Benchline'
 declare const __DEEPSPACE_APP_ID__: string
 export const APP_ID: string = __DEEPSPACE_APP_ID__
 export const SCOPE_ID = `app:${APP_ID}`
