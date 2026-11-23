@@ -29,7 +29,7 @@ The app focuses on repair intake and volunteer handoff, not running an entire re
 
 ## Deployment and verification
 
-- Live staging app: https://benchline-repair-cafe.spacestest.com (confirm final host after deployment).
+- Live staging app: https://orbit-ops-kepler186f.spacestest.com.
 - The source is committed locally and synced to the app’s DeepSpace repository.
 - npm run type-check passes with Node 24.
 - npm run build passes.
