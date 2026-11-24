@@ -43,13 +43,16 @@ Handoff conflicts are detected and surfaced, not merged: the last save wins, but
 ## Deployment and verification
 
 - Live app: https://benchline.app.space (production). An earlier build ran on a DeepSpace staging URL under a different account; this app was re-registered under my own production account.
-- `npm run type-check`, `npm run lint`, unit tests, and `npm run build` pass.
-- `npx deepspace test run smoke`: 6/6 pass (landing, SEO tags, no auth request or socket before sign-in, signed-out panel, sign-in overlay, 404).
-- `tests/shiftboard.spec.ts` runs two signed-in test users (Ana and Ben) against the real app and passes: no duplicate example cases after both load at once, a new repair syncs live, status changes sync, claim / take over / release, a handoff conflict keeps the draft and warns, chat shows the sender's name, presence shows two volunteers, and the activity feed records changes.
+- `npm run type-check`, `npm run lint`, `npm run test:unit` (31 tests) and `npm run build` pass.
+- Unit tests cover the queue filter and selection logic (`src/shiftboard`) and every server action (`src/actions/index.test.ts`) against an in-memory record store: viewers are refused, a stale claim or handoff save is refused, only the holder can release, and the fixed-id creates (volunteers, channel, example cases) do not duplicate.
+- `npx deepspace test run e2e`: all 10 pass (smoke, API and the two-user spec). The two-user spec, `tests/shiftboard.spec.ts`, signs in Ana and Ben and checks: no duplicate example cases after both load at once, a new repair syncs live, the new-repair dialog closes on Escape, status changes sync, claim / take over / release, a handoff conflict keeps the draft and warns, chat shows the sender's name, presence shows two volunteers, and the activity feed records changes.
+- The same two-user spec also passed against production after the last deploy. It leaves test records behind, so I removed them with the owner's agent tools afterwards.
 
 ### How the coding agent was used
 
-Claude Code reviewed the scaffolded project against the brief and found the bugs above (duplicate seeding race, anonymous chat names, handoff drafts overwritten by remote updates, claims with no release or takeover guard, a selected case hidden by the current filter, write controls shown to read-only viewers) and stale template tests. It implemented the fixes, delegated rewriting the smoke tests and writing the two-user spec to a subagent, and checked those results against the logs. I chose to stay on a scope I could finish, chose production over staging, approved creating the test accounts, and reviewed the diff before deploying.
+Claude Code reviewed the scaffolded project against the brief and found the bugs above (duplicate seeding race, anonymous chat names, handoff drafts overwritten by remote updates, claims with no release or takeover guard, a selected case hidden by the current filter, write controls shown to read-only viewers) and stale template tests. It implemented the fixes, delegated rewriting the smoke tests and writing the two-user spec to a subagent, and checked those results against the logs.
+
+In a second pass I asked it how to optimize the approach. It proposed moving case writes into server actions, closing the remaining create races, splitting the 520-line page, and removing unused starter code. It implemented those, added the action unit tests, and I had it run the specs locally and against production and clean up the test data. One slip worth noting: it first reported the cleanup query as empty because it read the wrong field of the response, and caught the mistake when it re-checked. I chose to stay on a scope I could finish, chose production over staging, approved creating the test accounts, and reviewed the diffs before each deploy.
 
 ## Local development
 
