@@ -35,9 +35,10 @@ Handoff conflicts are detected and surfaced, not merged: the last save wins, but
 
 ## Known limits and next steps
 
-- A case update and its activity entry are two writes. The case is written first, so a failure can only lose a log line, never the change itself. Moving both into one server action would make them a single request.
-- Take-over is a confirmation, not a lock; two volunteers who click within the same second both succeed, and the later one holds the case.
-- The starter template's AI chat routes, API status page, and settings page remain in the codebase but are not linked from the shiftboard.
+- Case changes and their activity entries are written by one server action each (`src/actions`), and claims and handoff saves are checked against the saved record. The check is a read followed by a write, so it narrows the race to milliseconds rather than locking.
+- Take-over is a confirmation plus a server check that the holder has not changed since you looked; it is not a lock.
+- The repair queue loads every case, returned ones included, because the record query only supports equality filters. Archiving old returned cases would be the next step if queues grow large.
+- The starter template's in-app AI chat, API status page, settings page and nav bar were removed. The local-assistant tool routes (`src/ai`) and the empty cron and job rooms stay because the platform's Durable Object bindings depend on them.
 
 ## Deployment and verification
 

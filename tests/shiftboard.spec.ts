@@ -40,6 +40,10 @@ test('Ana and Ben run a shift together', async ({ users }) => {
 
   await test.step('2. Ana adds a repair and Ben sees it live', async () => {
     await ana.page.getByRole('button', { name: 'New repair' }).click()
+    await expect(ana.page.getByRole('dialog')).toBeVisible()
+    await ana.page.keyboard.press('Escape')
+    await expect(ana.page.getByRole('dialog')).toHaveCount(0)
+    await ana.page.getByRole('button', { name: 'New repair' }).click()
     await ana.page.getByPlaceholder('e.g. Handheld vacuum').fill(item)
     await ana.page.getByPlaceholder('Describe the symptom and what the owner has tried.').fill('Does not heat water')
     await ana.page.getByRole('button', { name: 'Add to repair queue' }).click()

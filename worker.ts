@@ -19,7 +19,6 @@ import {
   YjsRoom,
 } from 'deepspace/worker'
 import type { DOBindings, DOManifest, Job, JobContext } from 'deepspace/worker'
-import { AI_CHATS_SCHEMA } from 'deepspace/schema'
 import { registerAgent } from './src/ai/agent.js'
 import { buildTools } from './src/ai/tools.js'
 import { tasks as cronTasks, runTask as runCronTask } from './src/cron.js'
@@ -137,12 +136,9 @@ app.use('*', async (c, next) => {
 registerAuthAndIntegrationRoutes(app)
 registerRealtimeRoutes(app)
 registerActionRoutes(app, resolveAuth)
-// Every scaffold exposes selected tools through HTTP, MCP and browser tools.
-// Only copilot owns the collections needed for the in-app chat UI.
-registerAgent(app, {
-  tools: buildTools,
-  inApp: schemas.some((schema) => schema.name === AI_CHATS_SCHEMA.name),
-})
+// Selected tools from src/ai/tools.ts are exposed to the local assistant over
+// HTTP, MCP and browser tools. There is no in-app AI chat.
+registerAgent(app, { tools: buildTools })
 registerPlatformProxyRoutes(app)
 registerStaticRoutes(app)
 
