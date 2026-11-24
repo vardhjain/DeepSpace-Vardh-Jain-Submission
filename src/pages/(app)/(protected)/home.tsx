@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
+  getAuthToken,
+  isWriterRole,
   useAuthProfileReady,
   useChannels,
   useMessages,
   useMutations,
   usePresenceRoom,
   useQuery,
+  useUser,
 } from 'deepspace'
 import {
   Activity,
@@ -27,22 +30,10 @@ import {
   X,
 } from 'lucide-react'
 import '../../../benchline.css'
+import type { RepairCase, RepairStatus } from '../../../repair-examples'
 
-type RepairStatus = 'received' | 'diagnosing' | 'waiting-parts' | 'ready' | 'returned'
-type RepairCase = {
-  caseNumber: string
-  itemName: string
-  category: string
-  problem: string
-  station: string
-  status: RepairStatus
-  nextStep: string
-  partsNeeded: string
-  assigneeId: string
-  assigneeName: string
-  demo: boolean
-}
 type RepairEvent = { caseNumber: string; message: string; tone: string }
+type Volunteer = { userId: string; name: string }
 type QueueFilter = 'open' | 'parts' | 'ready' | 'all'
 
 const statuses: { value: RepairStatus; label: string }[] = [
@@ -54,61 +45,6 @@ const statuses: { value: RepairStatus; label: string }[] = [
 ]
 const categories = ['Bicycle', 'Small appliance', 'Clothing & textiles', 'Electronics', 'Other']
 const stations = ['Bike stand', 'Electronics bench', 'Textile table', 'General bench']
-const starterCases: RepairCase[] = [
-  {
-    caseNumber: 'RC-024',
-    itemName: 'Trek city bike',
-    category: 'Bicycle',
-    problem: 'Rear brake rubs after the wheel was reinstalled.',
-    station: 'Bike stand',
-    status: 'waiting-parts',
-    nextStep: 'Fit the new cable, then test the brake under load.',
-    partsNeeded: 'Universal brake cable · ordered',
-    assigneeId: '',
-    assigneeName: 'Available',
-    demo: true,
-  },
-  {
-    caseNumber: 'RC-023',
-    itemName: 'Wool winter coat',
-    category: 'Clothing & textiles',
-    problem: 'Pocket seam has split, but the fabric is still sound.',
-    station: 'Textile table',
-    status: 'ready',
-    nextStep: 'Pickup at the textile table after 11:00.',
-    partsNeeded: 'Charcoal thread',
-    assigneeId: '',
-    assigneeName: 'Available',
-    demo: true,
-  },
-  {
-    caseNumber: 'RC-022',
-    itemName: 'Four-slice toaster',
-    category: 'Small appliance',
-    problem: 'The right side stays cold after a few minutes.',
-    station: 'Electronics bench',
-    status: 'diagnosing',
-    nextStep: 'Test continuity across both heating elements.',
-    partsNeeded: 'Check before ordering',
-    assigneeId: '',
-    assigneeName: 'Available',
-    demo: true,
-  },
-  {
-    caseNumber: 'RC-021',
-    itemName: 'Brass desk lamp',
-    category: 'Electronics',
-    problem: 'Lamp flickers when the power cord is moved.',
-    station: 'General bench',
-    status: 'received',
-    nextStep: 'Inspect the plug and cord strain relief.',
-    partsNeeded: 'None yet',
-    assigneeId: '',
-    assigneeName: 'Available',
-    demo: true,
-  },
-]
-
 function statusLabel(status: string) {
   return statuses.find(item => item.value === status)?.label ?? status
 }
@@ -119,10 +55,16 @@ function shortTime(value: string) {
 
 export default function ShiftboardPage() {
   const { user } = useAuthProfileReady({ requireUser: true })
+  const { user: roomUser } = useUser()
+  // Viewers are read-only in the schema; hide write controls instead of
+  // letting them click into a permission error.
+  const canWrite = roomUser ? isWriterRole(roomUser.role) : false
   const casesQuery = useQuery<RepairCase>('repair-cases', { orderBy: 'createdAt', orderDir: 'desc' })
   const eventsQuery = useQuery<RepairEvent>('repair-events', { orderBy: 'createdAt', orderDir: 'desc', limit: 8 })
   const cases = useMutations<RepairCase>('repair-cases')
   const events = useMutations<RepairEvent>('repair-events')
+  const volunteersQuery = useQuery<Volunteer>('volunteers')
+  const volunteers = useMutations<Volunteer>('volunteers')
   const { peers, updateState, connected } = usePresenceRoom('repair-cafe:main-hall')
   const { channels, create: createChannel } = useChannels()
   const [channelId, setChannelId] = useState<string>()
@@ -132,6 +74,10 @@ export default function ShiftboardPage() {
   const [search, setSearch] = useState('')
   const [nextStep, setNextStep] = useState('')
   const [partsNeeded, setPartsNeeded] = useState('')
+  // True while the volunteer has unsaved handoff edits: remote updates to the
+  // case must not overwrite what they are typing.
+  const [handoffDirty, setHandoffDirty] = useState(false)
+  const [handoffStale, setHandoffStale] = useState(false)
   const [draft, setDraft] = useState('')
   const [newRepairOpen, setNewRepairOpen] = useState(false)
   const [toast, setToast] = useState('')
@@ -142,6 +88,8 @@ export default function ShiftboardPage() {
     station: 'General bench',
   })
   const seedStarted = useRef(false)
+  const nameRegistered = useRef(false)
+  const loadedCaseId = useRef('')
 
   const userName = user?.name?.trim().split(/\s+/)[0] || 'Volunteer'
   const initials = userName.slice(0, 2).toUpperCase()
@@ -149,7 +97,6 @@ export default function ShiftboardPage() {
   const openCount = records.filter(item => item.data.status !== 'returned').length
   const waitingCount = records.filter(item => item.data.status === 'waiting-parts').length
   const readyCount = records.filter(item => item.data.status === 'ready').length
-  const selected = records.find(item => item.data.caseNumber === selectedNumber) ?? records[0]
   const filteredRecords = records.filter(item => {
     const data = item.data
     const matchesFilter =
@@ -165,7 +112,12 @@ export default function ShiftboardPage() {
       )
     return matchesFilter && matchesSearch
   })
+  // Keep the detail panel on a case the current filter actually shows.
+  const selected =
+    filteredRecords.find(item => item.data.caseNumber === selectedNumber) ?? filteredRecords[0]
   const hasLiveCase = records.some(item => !item.data.demo)
+  const nameFor = (userId: string) =>
+    volunteersQuery.records.find(item => item.data.userId === userId)?.data.name || 'Volunteer'
 
   useEffect(() => {
     updateState({ onShift: true, location: 'main hall' })
@@ -173,10 +125,28 @@ export default function ShiftboardPage() {
 
   useEffect(() => {
     if (!selected) return
+    const switched = loadedCaseId.current !== selected.recordId
+    if (!switched && handoffDirty) {
+      // Someone else saved this case while we were typing: keep the draft and
+      // say so, rather than silently replacing it.
+      if (selected.data.nextStep !== nextStep || selected.data.partsNeeded !== partsNeeded) setHandoffStale(true)
+      return
+    }
+    loadedCaseId.current = selected.recordId
     setSelectedNumber(selected.data.caseNumber)
     setNextStep(selected.data.nextStep)
     setPartsNeeded(selected.data.partsNeeded)
+    setHandoffDirty(false)
+    setHandoffStale(false)
   }, [selected?.recordId, selected?.data.nextStep, selected?.data.partsNeeded])
+
+  useEffect(() => {
+    if (nameRegistered.current || !user?.id || volunteersQuery.status !== 'ready') return
+    nameRegistered.current = true
+    const mine = volunteersQuery.records.find(item => item.data.userId === user.id)
+    if (!mine) void volunteers.create({ userId: user.id, name: userName }).catch(() => {})
+    else if (mine.data.name !== userName) void volunteers.put(mine.recordId, { name: userName }).catch(() => {})
+  }, [user?.id, userName, volunteersQuery.status, volunteersQuery.records, volunteers])
 
   useEffect(() => {
     if (!channelId) {
@@ -186,24 +156,22 @@ export default function ShiftboardPage() {
   }, [channels, channelId])
 
   useEffect(() => {
-    if (seedStarted.current || casesQuery.status !== 'ready' || eventsQuery.status !== 'ready') return
+    if (seedStarted.current || !canWrite || casesQuery.status !== 'ready') return
     seedStarted.current = true
     if (records.length) return
+    // Seeding runs server-side (src/actions) so racing first visitors can't
+    // duplicate the example queue.
     void (async () => {
-      for (const item of starterCases) await cases.createConfirmed(item)
-      await events.createConfirmed({
-        caseNumber: 'RC-024',
-        message: 'Example queue loaded for the repair café shift.',
-        tone: 'blue',
+      const token = await getAuthToken()
+      const response = await fetch('/api/actions/seed-examples', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: '{}',
       })
+      const result = (await response.json()) as { success: boolean; error?: string }
+      if (!result.success) throw new Error(result.error)
     })().catch(error => console.error('Could not initialize the example repair queue', error))
-  }, [
-    casesQuery.status,
-    eventsQuery.status,
-    records.length,
-    cases.createConfirmed,
-    events.createConfirmed,
-  ])
+  }, [canWrite, casesQuery.status, records.length])
 
   const notify = (message: string) => {
     setToast(message)
@@ -226,12 +194,25 @@ export default function ShiftboardPage() {
 
   const claimCase = async () => {
     if (!selected || !user?.id) return
+    const holder = selected.data.assigneeId
+    if (holder && holder !== user.id && !window.confirm(selected.data.assigneeName + ' is working on this repair. Take it over?')) return
     try {
       await cases.putConfirmed(selected.recordId, { assigneeId: user.id, assigneeName: userName })
       await logEvent(selected.data.caseNumber, userName + ' picked up this repair', 'green')
       notify('Repair assigned to you')
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Could not assign the repair')
+    }
+  }
+
+  const releaseCase = async () => {
+    if (!selected) return
+    try {
+      await cases.putConfirmed(selected.recordId, { assigneeId: '', assigneeName: 'Available' })
+      await logEvent(selected.data.caseNumber, userName + ' released this repair', 'blue')
+      notify('Repair is available for another volunteer')
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Could not release the repair')
     }
   }
 
@@ -243,6 +224,8 @@ export default function ShiftboardPage() {
         nextStep: nextStep.trim(),
         partsNeeded: partsNeeded.trim() || 'None',
       })
+      setHandoffDirty(false)
+      setHandoffStale(false)
       await logEvent(selected.data.caseNumber, 'Handoff updated: ' + (nextStep.trim() || 'No next step added'), 'blue')
       notify('Next step saved for the next volunteer')
     } catch (error) {
@@ -365,7 +348,7 @@ export default function ShiftboardPage() {
               <h1>Keep good things in use.</h1>
               <p>Track each repair from intake to pickup, and leave the next volunteer a clear handoff.</p>
             </div>
-            <button className="primary-action" type="button" onClick={() => setNewRepairOpen(true)}>
+            <button className="primary-action" type="button" disabled={!canWrite} title={canWrite ? undefined : 'Viewers can read the queue but not change it'} onClick={() => setNewRepairOpen(true)}>
               <Plus size={16} /> New repair
             </button>
           </section>
@@ -436,6 +419,7 @@ export default function ShiftboardPage() {
                           key={item.value}
                           className={'status-step' + (complete ? ' complete' : '') + (current ? ' current' : '')}
                           aria-label={'Set status: ' + item.label}
+                          disabled={!canWrite}
                           title={item.label}
                           onClick={() => void updateStatus(selected.recordId, selected.data, item.value)}
                         >
@@ -450,16 +434,22 @@ export default function ShiftboardPage() {
                   <div className="assignee-avatar"><UserRound size={15} /></div>
                   <div><span>VOLUNTEER</span><b>{selected.data.assigneeName || 'Available to claim'}</b></div>
                   {selected.data.assigneeId === user?.id ? (
-                    <span className="assigned-badge">ASSIGNED TO YOU</span>
-                  ) : (
-                    <button type="button" className="text-action" onClick={() => void claimCase()}>Take this case</button>
-                  )}
+                    <>
+                      <span className="assigned-badge">ASSIGNED TO YOU</span>
+                      {canWrite && <button type="button" className="text-action" onClick={() => void releaseCase()}>Release</button>}
+                    </>
+                  ) : canWrite ? (
+                    <button type="button" className="text-action" onClick={() => void claimCase()}>
+                      {selected.data.assigneeId ? 'Take over' : 'Take this case'}
+                    </button>
+                  ) : null}
                 </div>
 
                 <form className="handoff-form" onSubmit={saveHandoff}>
-                  <label><span className="field-label">PARTS & SUPPLIES</span><input value={partsNeeded} onChange={event => setPartsNeeded(event.target.value)} placeholder="What part is needed, if any?" /></label>
-                  <label><span className="field-label">NEXT STEP FOR THE NEXT VOLUNTEER</span><textarea value={nextStep} onChange={event => setNextStep(event.target.value)} placeholder="Leave a clear action or pickup note" rows={3} /></label>
-                  <button className="secondary-action" type="submit"><ArrowUpRight size={15} /> Save handoff</button>
+                  <label><span className="field-label">PARTS & SUPPLIES</span><input value={partsNeeded} readOnly={!canWrite} onChange={event => { setPartsNeeded(event.target.value); setHandoffDirty(true) }} placeholder="What part is needed, if any?" /></label>
+                  <label><span className="field-label">NEXT STEP FOR THE NEXT VOLUNTEER</span><textarea value={nextStep} readOnly={!canWrite} onChange={event => { setNextStep(event.target.value); setHandoffDirty(true) }} placeholder="Leave a clear action or pickup note" rows={3} /></label>
+                  {handoffStale && <p className="handoff-stale" role="status">Another volunteer updated this handoff. Saving will replace their version.</p>}
+                  {canWrite && <button className="secondary-action" type="submit"><ArrowUpRight size={15} /> Save handoff</button>}
                 </form>
               </article>
             ) : (
@@ -485,8 +475,8 @@ export default function ShiftboardPage() {
                   <div className="message-list">
                     {messages.slice(-5).length ? messages.slice(-5).map(message => (
                       <div className="message-row" key={message.recordId}>
-                        <span className="message-avatar">{message.data.authorId === user?.id ? initials : 'VC'}</span>
-                        <div><b>{message.data.authorId === user?.id ? 'You' : 'Volunteer'}</b><p>{message.data.deleted ? 'Message removed' : message.data.content}</p></div>
+                        <span className="message-avatar">{message.data.authorId === user?.id ? initials : nameFor(message.data.authorId).slice(0, 2).toUpperCase()}</span>
+                        <div><b>{message.data.authorId === user?.id ? 'You' : nameFor(message.data.authorId)}</b><p>{message.data.deleted ? 'Message removed' : message.data.content}</p></div>
                       </div>
                     )) : <p className="empty-copy">No handoffs yet. Leave a note for the next volunteer.</p>}
                   </div>

@@ -5,8 +5,9 @@ import { captureConsoleErrors } from './helpers/errors'
  * Smoke tests covering both page kinds this template ships:
  *   - '/'      → the static landing (top level of src/pages/): no providers,
  *                so no auth fetch and no records WebSocket on load.
- *   - '/home'  → a dynamic page (under src/pages/(app)/): the providers mount,
- *                the nav shell renders, and the records WebSocket connects.
+ *   - '/home'  → a dynamic page (under src/pages/(app)/(protected)/): providers mount;
+ *                signed-out visitors see the signed-out panel, and the records
+ *                WebSocket only connects once signed in.
  *
  * The "static contract" test is the guardrail for the per-page opt-out: if
  * someone moves the providers back up into _app.tsx, it fails.
@@ -52,15 +53,18 @@ test.describe('Smoke tests', () => {
     expect(offenders).toEqual([])
   })
 
-  test('dynamic app boundary mounts on /home', async ({ page }) => {
+  test('signed-out /home shows the signed-out panel', async ({ page }) => {
     await page.goto('/home')
-    await expect(page.getByTestId('app-navigation')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByTestId('signed-out-panel')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('button', { name: 'Sign in to the shiftboard' })).toBeVisible()
   })
 
-  test('sign-in button visible when logged out', async ({ page }) => {
+  test('sign-in button opens the auth overlay', async ({ page }) => {
     await page.goto('/home')
-    await expect(page.getByTestId('nav-sign-in-button')).toBeVisible({ timeout: 15000 })
-    await expect(page.getByTestId('nav-user-name')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Sign in to the shiftboard' }).click({ timeout: 15000 })
+    await expect(page.getByTestId('auth-overlay')).toBeVisible()
+    await page.getByTestId('auth-overlay-close').click()
+    await expect(page.getByTestId('auth-overlay')).toHaveCount(0)
   })
 
   test('unknown route shows 404', async ({ page }) => {

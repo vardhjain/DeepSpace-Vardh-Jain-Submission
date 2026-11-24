@@ -9,7 +9,7 @@ export default function Landing() {
   return (
     <>
       <Seo {...seo} path="/" />
-      <main className="landing-screen">
+      <main className="landing-screen" data-testid="static-landing">
         <section className="landing-card">
           <div className="landing-brand">
             <span className="bench-logo"><Wrench size={18} /></span>

@@ -24,6 +24,24 @@ export const repairCasesSchema: CollectionSchema = {
   permissions: repairTeamPermissions,
 }
 
+/**
+ * Public display names for the crew. The users collection is read-own (it
+ * holds emails), so other volunteers' names in chat come from here instead:
+ * each volunteer writes only their own first name.
+ */
+export const volunteersSchema: CollectionSchema = {
+  name: 'volunteers',
+  columns: [
+    { name: 'userId', storage: 'text', interpretation: 'plain' },
+    { name: 'name', storage: 'text', interpretation: 'plain' },
+  ],
+  permissions: {
+    viewer: { read: true, create: true, update: 'own', delete: false },
+    member: { read: true, create: true, update: 'own', delete: false },
+    admin: { read: true, create: true, update: true, delete: true },
+  },
+}
+
 export const repairEventsSchema: CollectionSchema = {
   name: 'repair-events',
   columns: [

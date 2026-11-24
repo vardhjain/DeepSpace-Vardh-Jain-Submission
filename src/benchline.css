@@ -282,3 +282,14 @@ button { cursor: pointer; }
   .bench-footer { font-size: 6px; }
   .bench-signin-card { padding: 25px 20px; }
 }
+.handoff-stale {
+  margin: 0;
+  font-size: 12px;
+  color: #9a5b00;
+}
+
+.primary-action:disabled,
+.status-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

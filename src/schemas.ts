@@ -9,13 +9,14 @@ import {
 } from 'deepspace/schema'
 import { usersSchema } from './schemas/users-schema'
 import { settingsSchema } from './schemas/admin-schema'
-import { repairCasesSchema, repairEventsSchema } from './schemas/repair-schema'
+import { repairCasesSchema, repairEventsSchema, volunteersSchema } from './schemas/repair-schema'
 
 export const schemas: CollectionSchema[] = [
   usersSchema,
   settingsSchema,
   repairCasesSchema,
   repairEventsSchema,
+  volunteersSchema,
   CHANNELS_SCHEMA,
   MESSAGES_SCHEMA,
   REACTIONS_SCHEMA,

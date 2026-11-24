@@ -20,7 +20,7 @@ function SignedOutPanel() {
   const [showAuthModal, setShowAuthModal] = useState(false)
 
   return (
-    <main className="bench-signin-shell">
+    <main className="bench-signin-shell" data-testid="signed-out-panel">
       <section className="bench-signin-card">
         <div className="bench-logo"><Wrench size={19} /></div>
         <div className="surface-kicker">COMMUNITY REPAIR TEAM</div>
